@@ -13,7 +13,7 @@ const signup = async (req,res) => {
 
         if(existingUser){
             return res.status(409).json({
-                messsage:"User already exists"
+                message:"User already exists"
             })
         }
         const hashPassword = await bcrypt.hash(password,10);
@@ -57,7 +57,7 @@ const signup = async (req,res) => {
 const signin = async (req,res) => {
     try{
         const {email,password} = req.body;
-        const cacheKey = `auth:user:${email}`;
+        const cacheKey = `auth:user:${email.trim().toLowerCase()}`;
         
         let user = null;
 
@@ -73,10 +73,17 @@ const signin = async (req,res) => {
             console.error("Redis GET failed:",error.message)
         }
         if(!user){
-            user = await UserModel.findOne({email});
+            user = await UserModel.findOne({email}).select("+password");
 
-            await cacheService.setCache(
-                `auth:user:${email}`,
+            if(!user){
+                return res.status(401).json({
+                    message:"Invalid email or password"
+                })
+            }
+
+           try{
+             await cacheService.setCache(
+                cacheKey,
                 {
                     id:user._id.toString(),
                     username:user.username,
@@ -85,6 +92,9 @@ const signin = async (req,res) => {
                 },
                 60
             )
+           }catch(error){
+            console.error("Redis SET failed:",error.message)
+           }
         }
         const isPasswordValid = await bcrypt.compare(password,user.password)
 
@@ -95,13 +105,13 @@ const signin = async (req,res) => {
             })
         }
 
-        const token = jwt.sign({id:user._id.toString},process.env.JWT_SECRET,{expriesIn:"1d"})
+        const token = jwt.sign({id:user._id?.toString()||user.id},process.env.JWT_SECRET,{expiresIn:"1d"})
 
         return res.status(200).json({
             message:"Signin successfully",
             token:token,
             user:{
-                id:user._id,
+                id:user.id,
                 username:user.username,
                 email:user.email,
             }
@@ -114,4 +124,4 @@ const signin = async (req,res) => {
     }
 }
 
-export default {signup,signin}
+export {signin,signup}
