@@ -7,7 +7,9 @@ const signup = async (req,res) => {
     try{    
         const {username,email,password} = req.body;
 
-        const existingUser = await UserModel.findOne({email});
+        
+        const normalizedEmail = email.trim().toLowerCase();
+        const existingUser = await UserModel.findOne({email:normalizedEmail});
 
         // console.log(existingUser)
 
@@ -20,13 +22,13 @@ const signup = async (req,res) => {
 
         const user = await UserModel.create({
             username:username,
-            email:email,
+            email:normalizedEmail,
             password:hashPassword
         })
 
         try{
             await cacheService.setCache(
-                `auth:user:${email}`,
+                `auth:user:${normalizedEmail}`,
                 {
                     id:user._id.toString(),
                     username:user.username,
@@ -57,25 +59,20 @@ const signup = async (req,res) => {
 const signin = async (req,res) => {
     try{
         const {email,password} = req.body;
-        const cacheKey = `auth:user:${email.trim().toLowerCase()}`;
+        const normalizedEmail = email.trim().toLowerCase();
+        const cacheKey = `auth:user:${normalizedEmail}`;
         
         let user = null;
-
-        try{
-            user = await cacheService.getCache(cacheKey)
-
-            if(user){
-                console.log("CACHE HIT");
-            }else{
-                console.log("CACHE MISS");
-            }
-        }catch(error){
-            console.error("Redis GET failed:",error.message)
-        }
+        user = await UserModel.findOne({email}).select("+password");
         if(!user){
-            user = await UserModel.findOne({email}).select("+password");
 
             if(!user){
+                return res.status(401).json({
+                    message:"Invalid email or password"
+                })
+            }
+            const isPasswordValid = await bcrypt.compare(password,user.password)
+            if(!isPasswordValid){
                 return res.status(401).json({
                     message:"Invalid email or password"
                 })
@@ -87,8 +84,7 @@ const signin = async (req,res) => {
                 {
                     id:user._id.toString(),
                     username:user.username,
-                    email:user.email,
-                    password:user.password,
+                    email:user.email
                 },
                 60
             )
@@ -96,14 +92,8 @@ const signin = async (req,res) => {
             console.error("Redis SET failed:",error.message)
            }
         }
-        const isPasswordValid = await bcrypt.compare(password,user.password)
 
 
-        if(!isPasswordValid){
-            return res.status(401).json({
-                message:"Invalid email or password"
-            })
-        }
 
         const token = jwt.sign({id:user._id?.toString()||user.id},process.env.JWT_SECRET,{expiresIn:"1d"})
 
@@ -138,7 +128,7 @@ const changePassword = async(req,res) => {
                 message:"User not found"
             })
 
-        const isValid =  bcrypt.compare(oldPassword,user.password)
+        const isValid =  await  bcrypt.compare(oldPassword,user.password)
 
         if(!isValid)
             return res.status(401).json({
