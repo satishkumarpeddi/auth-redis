@@ -2,6 +2,7 @@ import UserModel from "../models/user.model.js";
 import bcrypt from 'bcrypt'
 import cacheService from "../services/cache.service.js";
 import jwt from 'jsonwebtoken'
+import notificationQueue from "../queues/notification.queue.js"
 
 const signup = async (req,res) => {
     try{    
@@ -27,6 +28,27 @@ const signup = async (req,res) => {
         })
 
         try{
+            await notificationQueue.add(
+                "welcome-email",
+                {
+                    userId:user._id.toString(),
+                    username:user.username,
+                    email:user.email
+                },
+                {
+                    attempts:3,
+                    backoff:{
+                        type:"exponential",
+                        delay:1000
+                    },
+                    removeOnComplete:true,
+                    removeOnFail:false
+                }
+            )
+        }catch(error){
+            console.error("Failed to enqueue welcome notification:",error)
+        }
+        try{
             await cacheService.setCache(
                 `auth:user:${normalizedEmail}`,
                 {
@@ -48,6 +70,7 @@ const signup = async (req,res) => {
                 email:user.email
             }
         })
+        
     }catch(error){
         return res.status(500).json({
             message:"Signup failed",
