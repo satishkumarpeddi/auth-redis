@@ -124,4 +124,55 @@ const signin = async (req,res) => {
     }
 }
 
-export {signin,signup}
+const changePassword = async(req,res) => {
+
+    try{
+        const {oldPassword,newPassword} = req.body;
+
+        const userId = req.user.id;
+
+        const user = await UserModel.findById(userId).select("+password")
+
+        if(!user)   
+            return res.status(404).json({
+                message:"User not found"
+            })
+
+        const isValid =  bcrypt.compare(oldPassword,user.password)
+
+        if(!isValid)
+            return res.status(401).json({
+                message:"Old password is incorrect"
+            })
+        
+        const hashPassword = await bcrypt.hash(newPassword,10)
+
+        user.password = hashPassword;
+
+        await user.save(); // This is used to change the modified data 
+
+        const cacheKey = `auth:user:${user.email}`
+
+        try{
+            await cacheService.deleteCache(cacheKey)
+        }catch(error){
+            console.error("Redis invalidation failed:",error.message)
+            return res.status(503).json({
+                message:"Password updated,but cache invalidation failed. Please contact support. "
+            })
+        }
+
+        return res.status(200).json({
+            message:"Password changed successfully"
+        })
+
+    }catch(error){
+        console.error("Password change error:",error);
+
+        return res.status(500).json({
+            message:"Internal server error"
+        })
+    }
+}
+
+export {signin,signup,changePassword}
