@@ -4,7 +4,7 @@ import redisClient from "../config/redis.js";
 const rateLimit = async(req,res,next) => {
     try{
         const ip = req.ip;
-
+        
         const key = `ratelimit:signin:${ip}`
 
         const attempts = await redisClient.incr(key)
