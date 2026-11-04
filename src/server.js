@@ -1,10 +1,11 @@
 import express from 'express'
 import redisClient from './config/redis.js'
+import authRouter from './routes/auth.routes.js'
 import 'dotenv/config'
 const app = express();
 
 app.use(express.json());
-
+app.use('/api/auth',authRouter)
 const startServer = async () =>{
     try{
         await redisClient.connect();
