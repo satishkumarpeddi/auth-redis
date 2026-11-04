@@ -14,7 +14,7 @@ const getCache = async(key) =>{
 const setCache = async(key,value,ttl=60) =>{ 
     await redisClient.set(
         key,
-        value,
+        JSON.stringify(value),
         {
             EX:ttl
         }

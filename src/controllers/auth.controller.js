@@ -7,7 +7,9 @@ const signup = async (req,res) => {
     try{    
         const {username,email,password} = req.body;
 
-        const existingUser = UserModel.findOne({email});
+        const existingUser = await UserModel.findOne({email});
+
+        // console.log(existingUser)
 
         if(existingUser){
             return res.status(409).json({
@@ -29,13 +31,10 @@ const signup = async (req,res) => {
                     id:user._id.toString(),
                     username:user.username,
                     email:user.email
-                },
-                {
-                    EX:60
-                }
+                },60
             )
         }catch(error){
-            console.error("Redis cache error:",cacheError);
+            console.error("Redis cache error:",error);
         }
 
 
